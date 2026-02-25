@@ -125,11 +125,14 @@ if __name__ == '__main__':
     parser.add_argument("--criterion", type=str, help="Loss function (mse, Smoothl1Loss)")
     parser.add_argument("--freeze", action="store_true", help="Freeze backbone and only train regression head")
     parser.add_argument("--visualize", action="store_true", help="Load checkpoint and run visualization")
-    parser.add_argument("--checkpoint", type=str, default="checkpoints/last_checkpoint.pth", help="Path to checkpoint file")
+    parser.add_argument("--checkpoint", type=str, default=None, help="Path to checkpoint file")
 
     args = parser.parse_args()
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    if args.checkpoint is None and args.model:
+        args.checkpoint = f"checkpoints-{args.model}/last_checkpoint.pth"
 
     if args.visualize:
         # Load checkpoint and visualize
