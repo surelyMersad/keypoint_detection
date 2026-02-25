@@ -85,17 +85,13 @@ def train(model, train_loader, test_loader, optimizer, criterian, device, model_
     return epoch, step
 
 
-def weighted_mse_loss(pred, target, alpha=10.0):
-    """MSE loss with higher weight on peak regions to combat sparsity."""
-    weight = 1.0 + alpha * target  # background: 1, peak center: 11
-    return (weight * (pred - target) ** 2).mean()
-
-
 def train_heatmap(model, train_loader, test_loader, optimizer, device, model_name='unet', num_epochs=10, eval_interval=10, log_interval=5, save_interval=30):
     step = 0
     running_loss = 0
     best_val_loss = float('inf')
     scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5)
+    # BCE with pos_weight: missing a peak pixel is 5x worse than false-alarming on background
+    criterion = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([5.0]).to(device))
 
     for epoch in range(num_epochs):
         model.train()
@@ -105,8 +101,8 @@ def train_heatmap(model, train_loader, test_loader, optimizer, device, model_nam
             images = batch['image'].to(device)
             heatmaps_gt = batch['heatmaps'].to(device)
 
-            heatmaps_pred = model(images)
-            loss = weighted_mse_loss(heatmaps_pred, heatmaps_gt)
+            heatmaps_pred = model(images)  # raw logits (no sigmoid)
+            loss = criterion(heatmaps_pred, heatmaps_gt)
 
             optimizer.zero_grad()
             loss.backward()
