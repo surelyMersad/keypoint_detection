@@ -23,56 +23,56 @@ class DoubleConv(nn.Module):
 
 
 class UNet(nn.Module):
-    def __init__(self, in_channels=1, num_keypoints=68, heatmap_size=64, dropout_p=0.3):
+    def __init__(self, in_channels=1, num_keypoints=68, heatmap_size=64, dropout_p=0.5):
         super().__init__()
         self.heatmap_size = heatmap_size
 
-        # Encoder
-        self.enc1 = DoubleConv(in_channels, 64)
-        self.enc2 = DoubleConv(64, 128)
-        self.enc3 = DoubleConv(128, 256)
-        self.enc4 = DoubleConv(256, 512)
+        # Encoder (reduced: 32->64->128->256)
+        self.enc1 = DoubleConv(in_channels, 32)
+        self.enc2 = DoubleConv(32, 64)
+        self.enc3 = DoubleConv(64, 128)
+        self.enc4 = DoubleConv(128, 256)
         self.pool = nn.MaxPool2d(2)
 
         # Dropout between encoder and decoder
         self.dropout_enc = nn.Dropout2d(p=dropout_p)
 
         # Bottleneck
-        self.bottleneck = DoubleConv(512, 1024)
+        self.bottleneck = DoubleConv(256, 512)
 
         # Dropout after bottleneck
         self.dropout_bottleneck = nn.Dropout2d(p=dropout_p)
 
         # Decoder
-        self.up4 = nn.ConvTranspose2d(1024, 512, kernel_size=2, stride=2)
-        self.dec4 = DoubleConv(1024, 512)
-        self.up3 = nn.ConvTranspose2d(512, 256, kernel_size=2, stride=2)
-        self.dec3 = DoubleConv(512, 256)
-        self.up2 = nn.ConvTranspose2d(256, 128, kernel_size=2, stride=2)
-        self.dec2 = DoubleConv(256, 128)
-        self.up1 = nn.ConvTranspose2d(128, 64, kernel_size=2, stride=2)
-        self.dec1 = DoubleConv(128, 64)
+        self.up4 = nn.ConvTranspose2d(512, 256, kernel_size=2, stride=2)
+        self.dec4 = DoubleConv(512, 256)
+        self.up3 = nn.ConvTranspose2d(256, 128, kernel_size=2, stride=2)
+        self.dec3 = DoubleConv(256, 128)
+        self.up2 = nn.ConvTranspose2d(128, 64, kernel_size=2, stride=2)
+        self.dec2 = DoubleConv(128, 64)
+        self.up1 = nn.ConvTranspose2d(64, 32, kernel_size=2, stride=2)
+        self.dec1 = DoubleConv(64, 32)
 
         # Output: one heatmap per keypoint
-        self.out_conv = nn.Conv2d(64, num_keypoints, kernel_size=1)
+        self.out_conv = nn.Conv2d(32, num_keypoints, kernel_size=1)
 
     def forward(self, x):
         # Encoder
-        e1 = self.enc1(x)                     # [B, 64, 224, 224]
-        e2 = self.enc2(self.pool(e1))          # [B, 128, 112, 112]
-        e3 = self.enc3(self.pool(e2))          # [B, 256, 56, 56]
-        e4 = self.enc4(self.pool(e3))          # [B, 512, 28, 28]
+        e1 = self.enc1(x)                     # [B, 32, 224, 224]
+        e2 = self.enc2(self.pool(e1))          # [B, 64, 112, 112]
+        e3 = self.enc3(self.pool(e2))          # [B, 128, 56, 56]
+        e4 = self.enc4(self.pool(e3))          # [B, 256, 28, 28]
         e4 = self.dropout_enc(e4)
 
         # Bottleneck
-        b = self.bottleneck(self.pool(e4))     # [B, 1024, 14, 14]
+        b = self.bottleneck(self.pool(e4))     # [B, 512, 14, 14]
         b = self.dropout_bottleneck(b)
 
         # Decoder with skip connections
-        d4 = self.dec4(torch.cat([self.up4(b), e4], dim=1))   # [B, 512, 28, 28]
-        d3 = self.dec3(torch.cat([self.up3(d4), e3], dim=1))  # [B, 256, 56, 56]
-        d2 = self.dec2(torch.cat([self.up2(d3), e2], dim=1))  # [B, 128, 112, 112]
-        d1 = self.dec1(torch.cat([self.up1(d2), e1], dim=1))  # [B, 64, 224, 224]
+        d4 = self.dec4(torch.cat([self.up4(b), e4], dim=1))   # [B, 256, 28, 28]
+        d3 = self.dec3(torch.cat([self.up3(d4), e3], dim=1))  # [B, 128, 56, 56]
+        d2 = self.dec2(torch.cat([self.up2(d3), e2], dim=1))  # [B, 64, 112, 112]
+        d1 = self.dec1(torch.cat([self.up1(d2), e1], dim=1))  # [B, 32, 224, 224]
 
         # Output heatmaps resized to target resolution
         out = self.out_conv(d1)                # [B, 68, 224, 224]
