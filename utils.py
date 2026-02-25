@@ -4,7 +4,6 @@ import subprocess
 import zipfile
 import torch
 import matplotlib.pyplot as plt
-from custom_transforms import data_transform
 from cnn import CNN
 from ResNet import ResNetKeypointDetector
 from dino import DINOKeypointDetector
@@ -129,8 +128,8 @@ def load_dataset():
     test_dataset = FacialKeypointsDataset('data/test_frames_keypoints.csv', 'data/test', data_transform)
     return train_dataset, test_dataset
 
-def get_training_args (model, freeze):
-    if model == 'cnn' : 
+def get_training_args (model_name, model, freeze):
+    if model_name == 'cnn' :
         batch_size = 64
         lr = 1e-3
 
@@ -157,7 +156,7 @@ def get_training_args (model, freeze):
 
         return train_loader, test_loader, optimizer
 
-    elif model == 'resnet' or model == 'dino':
+    elif model_name == 'resnet' or model_name == 'dino':
         batch_size = 64
 
         if freeze :
@@ -176,7 +175,7 @@ def get_training_args (model, freeze):
             optimizer = torch.optim.Adam(
             model.parameters(),
             lr=lr)
-            
+
 
         train_dataset, test_dataset = load_dataset()
 
@@ -196,6 +195,6 @@ def get_training_args (model, freeze):
 
     else :
         raise ValueError('model is not defined - choose between : CNN, Resnet, Dino')
-    
+
     return train_loader, test_loader, optimizer
     

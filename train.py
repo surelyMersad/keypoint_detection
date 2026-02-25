@@ -102,7 +102,7 @@ if __name__ == '__main__':
         visualize_keypoints(test_loader, model, device=device)
     else:
         model = load_model(args.model).to(device)
-        train_loader, test_loader, optimizer = get_training_args(args.model, args.freeze)
+        train_loader, test_loader, optimizer = get_training_args(args.model, model, args.freeze)
         epoch, step = train(model, train_loader, test_loader, optimizer, args.criterion, device)
 
         # Save last checkpoint

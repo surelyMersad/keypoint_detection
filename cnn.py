@@ -76,8 +76,12 @@ class CNN(nn.Module):
             loss: Scalar loss value
         """
         
-        # Compute loss
-        loss = criterian(preds, labels)
-        
-        return loss
+        if criterian == "mse":
+            loss_fn = nn.MSELoss()
+        elif criterian == "Smoothl1Loss":
+            loss_fn = nn.SmoothL1Loss()
+        else:
+            raise ValueError(f"Unknown criterion: {criterian}")
+
+        return loss_fn(preds, labels)
 

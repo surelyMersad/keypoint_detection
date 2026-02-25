@@ -72,7 +72,25 @@ class ResNetKeypointDetector(nn.Module):
         
         return keypoints
       
-    def compute_loss(self, preds, labels, criterion):
-        """Compute regression loss for keypoint detection."""
-        return criterion(preds, labels)
+    def compute_loss(self, preds, labels, criterian): 
+        """
+        Compute regression loss for keypoint detection.
+        
+        Args:
+            preds: Model predictions [batch_size, 136]
+            labels: Ground truth [batch_size, 68, 2]
+            criterion: Loss function (SmoothL1Loss or MSELoss)
+        
+        Returns:
+            loss: Scalar loss value
+        """
+        
+        if criterian == "mse":
+            loss_fn = nn.MSELoss()
+        elif criterian == "Smoothl1Loss":
+            loss_fn = nn.SmoothL1Loss()
+        else:
+            raise ValueError(f"Unknown criterion: {criterian}")
+
+        return loss_fn(preds, labels)
 
