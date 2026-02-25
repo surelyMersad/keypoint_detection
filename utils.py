@@ -4,12 +4,22 @@ import subprocess
 import zipfile
 import torch
 import matplotlib.pyplot as plt
-from facial_keypoints_dataset import FacialKeypointsDataset
 from custom_transforms import data_transform
 from cnn import CNN
 from ResNet import ResNetKeypointDetector
 from dino import DINOKeypointDetector
+from torchvision import transforms, utils
 
+# the transforms we defined in Notebook 1 are in the helper file `custom_transforms.py`
+from custom_transforms import (
+    Rescale,
+    RandomCrop,
+    NormalizeOriginal,
+    ToTensor,
+)
+
+# the dataset we created in Notebook 1
+from facial_keypoints_dataset import FacialKeypointsDataset
 
 def save_checkpoint(model, optimizer, epoch, step, model_name, path='checkpoints/last_checkpoint.pth'):
     os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -110,6 +120,11 @@ def download_data(data_dir='data'):
 
 def load_dataset():
     download_data()
+    # defining the data_transform using transforms.Compose([all tx's, . , .])
+    # order matters! i.e. rescaling should come before a smaller crop
+    data_transform = transforms.Compose(
+    [Rescale(250), RandomCrop(224), NormalizeOriginal(), ToTensor()])
+
     train_dataset = FacialKeypointsDataset('data/training_frames_keypoints.csv', 'data/training', data_transform)
     test_dataset = FacialKeypointsDataset('data/test_frames_keypoints.csv', 'data/test', data_transform)
     return train_dataset, test_dataset
@@ -142,13 +157,13 @@ def get_training_args (model, freeze):
 
         return train_loader, test_loader, optimizer
 
-    elif model == 'resnet' or 'dino':
+    elif model == 'resnet' or model == 'dino':
         batch_size = 64
 
         if freeze :
             # stage1 lr is set to be higher
             lr = 5e-4
-            model.freeze_backbone()
+            model._freeze_backbone()
             optimizer = torch.optim.Adam(
             [p for p in model.parameters() if p.requires_grad],
             lr=lr,
@@ -184,5 +199,3 @@ def get_training_args (model, freeze):
     
     return train_loader, test_loader, optimizer
     
-
-
