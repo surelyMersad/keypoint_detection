@@ -89,7 +89,6 @@ def train_heatmap(model, train_loader, test_loader, optimizer, device, model_nam
     step = 0
     running_loss = 0
     criterion = nn.MSELoss()
-    scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_epochs)
 
     for epoch in range(num_epochs):
         model.train()
@@ -110,8 +109,7 @@ def train_heatmap(model, train_loader, test_loader, optimizer, device, model_nam
 
             if step % log_interval == 0:
                 avg_loss = running_loss / log_interval
-                wandb.log({"train_loss": avg_loss, "step": step, "epoch": epoch,
-                           "lr": optimizer.param_groups[0]['lr']})
+                wandb.log({"train_loss": avg_loss, "step": step, "epoch": epoch})
                 print(f"Epoch {epoch}, Step {step}: Train Loss = {avg_loss:.6f}")
                 running_loss = 0
 
@@ -120,8 +118,6 @@ def train_heatmap(model, train_loader, test_loader, optimizer, device, model_nam
                 wandb.log({"val_loss": val_loss, "step": step, "epoch": epoch})
                 print(f"Epoch {epoch}, Step {step}: Val Loss = {val_loss:.6f}")
                 model.train()
-
-        scheduler.step()
 
             # Save checkpoint every save_interval steps
             if step % save_interval == 0:
