@@ -30,7 +30,7 @@ from utils import evaluate, evaluate_heatmap, get_training_args, load_model, sav
 step = 0
 running_loss = 0
 
-def train(model, train_loader, test_loader, optimizer, criterian, device, num_epochs=10, eval_interval=10, log_interval=5):
+def train(model, train_loader, test_loader, optimizer, criterian, device, model_name='model', num_epochs=10, eval_interval=10, log_interval=5, save_interval=30):
     step = 0
     running_loss = 0
 
@@ -66,7 +66,7 @@ def train(model, train_loader, test_loader, optimizer, criterian, device, num_ep
                 wandb.log({"train_loss": avg_loss, "step": step})
                 print(f"Step {step}: Train Loss = {avg_loss:.4f}")
                 running_loss = 0
-            
+
             # Evaluate every eval_interval steps
             if step % eval_interval == 0:
                 model.eval()
@@ -75,12 +75,17 @@ def train(model, train_loader, test_loader, optimizer, criterian, device, num_ep
 
                 # switch back to train
                 model.train()
-            
+
+            # Save checkpoint every save_interval steps
+            if step % save_interval == 0:
+                save_checkpoint(model, optimizer, epoch, step, model_name,
+                                path=f"checkpoints-{model_name}/step_{step}.pth")
+
     print("✓ Stage 1 completed: Frozen backbone training done!")
     return epoch, step
 
 
-def train_heatmap(model, train_loader, test_loader, optimizer, device, num_epochs=10, eval_interval=10, log_interval=5):
+def train_heatmap(model, train_loader, test_loader, optimizer, device, model_name='unet', num_epochs=10, eval_interval=10, log_interval=5, save_interval=30):
     step = 0
     running_loss = 0
     criterion = nn.MSELoss()
@@ -113,6 +118,11 @@ def train_heatmap(model, train_loader, test_loader, optimizer, device, num_epoch
                 wandb.log({"val_loss": val_loss, "step": step, "epoch": epoch})
                 print(f"Epoch {epoch}, Step {step}: Val Loss = {val_loss:.6f}")
                 model.train()
+
+            # Save checkpoint every save_interval steps
+            if step % save_interval == 0:
+                save_checkpoint(model, optimizer, epoch, step, model_name,
+                                path=f"checkpoints-{model_name}/step_{step}.pth")
 
     print("Heatmap training complete!")
     return epoch, step
@@ -153,9 +163,9 @@ if __name__ == '__main__':
         })
 
         if args.model == 'unet':
-            epoch, step = train_heatmap(model, train_loader, test_loader, optimizer, device)
+            epoch, step = train_heatmap(model, train_loader, test_loader, optimizer, device, model_name=args.model)
         else:
-            epoch, step = train(model, train_loader, test_loader, optimizer, args.criterion, device)
+            epoch, step = train(model, train_loader, test_loader, optimizer, args.criterion, device, model_name=args.model)
 
         # Save last checkpoint
         save_checkpoint(model, optimizer, epoch, step, args.model, path=args.checkpoint)
