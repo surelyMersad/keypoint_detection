@@ -80,12 +80,16 @@ def visualize_keypoints(test_loader, model, device='cuda'):
   for i, data in enumerate(test_loader):
       image = data['image'][0]
       images = data['image']
-      
+
       with torch.no_grad():
           images = images.to(device)
           predictions = model(images)
-      
-      predictions = predictions.reshape(images.size(0), 68, 2)
+
+      # UNet outputs heatmaps (B, 68, H, W); other models output (B, 136)
+      if predictions.dim() == 4:
+          predictions = heatmaps_to_keypoints(predictions)
+      else:
+          predictions = predictions.reshape(images.size(0), 68, 2)
       predictions = predictions.cpu().numpy()
       
       pred_kpts = predictions[0]
