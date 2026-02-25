@@ -1,5 +1,7 @@
 from torch.utils.data import Dataset, DataLoader
 import os
+import subprocess
+import zipfile
 import torch
 import matplotlib.pyplot as plt
 from facial_keypoints_dataset import FacialKeypointsDataset
@@ -90,8 +92,24 @@ def visualize_keypoints(test_loader, model, device='cuda'):
       if i >= 4:
           break
       
+def download_data(data_dir='data'):
+    if os.path.exists(os.path.join(data_dir, 'training')) and os.path.exists(os.path.join(data_dir, 'test')):
+        return
+    print("Data not found. Downloading...")
+    os.makedirs(data_dir, exist_ok=True)
+    zip_path = os.path.join(data_dir, 'train-test-data.zip')
+    subprocess.run([
+        'wget', '-q', '-O', zip_path,
+        'https://s3.amazonaws.com/video.udacity-data.com/topher/2018/May/5aea1b91_train-test-data/train-test-data.zip'
+    ], check=True)
+    with zipfile.ZipFile(zip_path, 'r') as z:
+        z.extractall(data_dir)
+    os.remove(zip_path)
+    print("Data downloaded and extracted.")
+
+
 def load_dataset():
-    # Load and preprocess dataset
+    download_data()
     train_dataset = FacialKeypointsDataset('data/training_frames_keypoints.csv', 'data/training', data_transform)
     test_dataset = FacialKeypointsDataset('data/test_frames_keypoints.csv', 'data/test', data_transform)
     return train_dataset, test_dataset
