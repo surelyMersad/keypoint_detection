@@ -94,6 +94,8 @@ def weighted_mse_loss(pred, target, alpha=10.0):
 def train_heatmap(model, train_loader, test_loader, optimizer, device, model_name='unet', num_epochs=10, eval_interval=10, log_interval=5, save_interval=30):
     step = 0
     running_loss = 0
+    best_val_loss = float('inf')
+    scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5)
 
     for epoch in range(num_epochs):
         model.train()
@@ -108,14 +110,15 @@ def train_heatmap(model, train_loader, test_loader, optimizer, device, model_nam
 
             optimizer.zero_grad()
             loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             optimizer.step()
 
             running_loss += loss.item()
 
             if step % log_interval == 0:
                 avg_loss = running_loss / log_interval
-                wandb.log({"train_loss": avg_loss, "step": step, "epoch": epoch})
-                print(f"Epoch {epoch}, Step {step}: Train Loss = {avg_loss:.6f}")
+                wandb.log({"train_loss": avg_loss, "step": step, "epoch": epoch, "lr": optimizer.param_groups[0]['lr']})
+                print(f"Epoch {epoch}, Step {step}: Train Loss = {avg_loss:.6f} (lr={optimizer.param_groups[0]['lr']:.6f})")
                 running_loss = 0
 
             if step % eval_interval == 0:
@@ -124,10 +127,23 @@ def train_heatmap(model, train_loader, test_loader, optimizer, device, model_nam
                 print(f"Epoch {epoch}, Step {step}: Val Loss = {val_loss:.6f}")
                 model.train()
 
+                # Save best model
+                if val_loss < best_val_loss:
+                    best_val_loss = val_loss
+                    save_checkpoint(model, optimizer, epoch, step, model_name,
+                                    path=f"checkpoints-{model_name}/best.pth")
+                    print(f"  -> New best val loss: {val_loss:.6f}")
+
             # Save checkpoint every save_interval steps
             if step % save_interval == 0:
                 save_checkpoint(model, optimizer, epoch, step, model_name,
                                 path=f"checkpoints-{model_name}/step_{step}.pth")
+
+        # Step scheduler at end of epoch
+        epoch_val_loss = evaluate_heatmap(model, test_loader, device)
+        scheduler.step(epoch_val_loss)
+        print(f"--- Epoch {epoch} done. Val Loss = {epoch_val_loss:.6f}, LR = {optimizer.param_groups[0]['lr']:.6f} ---")
+        model.train()
 
     print("Heatmap training complete!")
     return epoch, step

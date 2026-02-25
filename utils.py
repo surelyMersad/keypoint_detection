@@ -221,15 +221,15 @@ def get_training_args (model_name, model, freeze):
         )
 
     elif model_name == 'unet':
-        batch_size = 64
-        lr = 1e-3
+        batch_size = 32
+        lr = 3e-4
 
         train_dataset, test_dataset = load_heatmap_dataset()
 
         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
         test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, drop_last=True)
 
-        optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=1e-3)
+        optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=1e-4)
 
     else :
         raise ValueError('model is not defined - choose between : CNN, Resnet, Dino, UNet')
