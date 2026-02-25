@@ -85,10 +85,15 @@ def train(model, train_loader, test_loader, optimizer, criterian, device, model_
     return epoch, step
 
 
+def weighted_mse_loss(pred, target, alpha=10.0):
+    """MSE loss with higher weight on peak regions to combat sparsity."""
+    weight = 1.0 + alpha * target  # background: 1, peak center: 11
+    return (weight * (pred - target) ** 2).mean()
+
+
 def train_heatmap(model, train_loader, test_loader, optimizer, device, model_name='unet', num_epochs=10, eval_interval=10, log_interval=5, save_interval=30):
     step = 0
     running_loss = 0
-    criterion = nn.MSELoss()
 
     for epoch in range(num_epochs):
         model.train()
@@ -99,7 +104,7 @@ def train_heatmap(model, train_loader, test_loader, optimizer, device, model_nam
             heatmaps_gt = batch['heatmaps'].to(device)
 
             heatmaps_pred = model(images)
-            loss = criterion(heatmaps_pred, heatmaps_gt)
+            loss = weighted_mse_loss(heatmaps_pred, heatmaps_gt)
 
             optimizer.zero_grad()
             loss.backward()
@@ -135,6 +140,7 @@ if __name__ == '__main__':
     parser.add_argument("--criterion", type=str, help="Loss function (mse, Smoothl1Loss)")
     parser.add_argument("--freeze", action="store_true", help="Freeze backbone and only train regression head")
     parser.add_argument("--visualize", action="store_true", help="Load checkpoint and run visualization")
+    parser.add_argument("--epochs", type=int, default=50, help="Number of training epochs")
     parser.add_argument("--checkpoint", type=str, default=None, help="Path to checkpoint file")
 
     args = parser.parse_args()
@@ -163,9 +169,9 @@ if __name__ == '__main__':
         })
 
         if args.model == 'unet':
-            epoch, step = train_heatmap(model, train_loader, test_loader, optimizer, device, model_name=args.model)
+            epoch, step = train_heatmap(model, train_loader, test_loader, optimizer, device, model_name=args.model, num_epochs=args.epochs)
         else:
-            epoch, step = train(model, train_loader, test_loader, optimizer, args.criterion, device, model_name=args.model)
+            epoch, step = train(model, train_loader, test_loader, optimizer, args.criterion, device, model_name=args.model, num_epochs=args.epochs)
 
         # Save last checkpoint
         save_checkpoint(model, optimizer, epoch, step, args.model, path=args.checkpoint)

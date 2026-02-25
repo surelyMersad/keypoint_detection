@@ -3,7 +3,6 @@ import os
 import subprocess
 import zipfile
 import torch
-import torch.nn as nn
 import matplotlib.pyplot as plt
 from cnn import CNN
 from ResNet import ResNetKeypointDetector
@@ -260,14 +259,15 @@ def heatmaps_to_keypoints(heatmaps, heatmap_size=64, image_size=224):
     return keypoints
 
 
-def evaluate_heatmap(model, test_loader, device):
+def evaluate_heatmap(model, test_loader, device, alpha=10.0):
     model.eval()
-    criterion = nn.MSELoss()
     total_loss = 0
     with torch.no_grad():
         for batch in test_loader:
             images = batch['image'].to(device)
             heatmaps_gt = batch['heatmaps'].to(device)
             heatmaps_pred = model(images)
-            total_loss += criterion(heatmaps_pred, heatmaps_gt).item()
+            weight = 1.0 + alpha * heatmaps_gt
+            loss = (weight * (heatmaps_pred - heatmaps_gt) ** 2).mean()
+            total_loss += loss.item()
     return total_loss / len(test_loader)
