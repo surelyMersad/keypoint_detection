@@ -145,10 +145,10 @@ def load_heatmap_dataset(heatmap_size=64):
 
     train_dataset = FacialKeypointsHeatmapDataset(
         'data/training_frames_keypoints.csv', 'data/training',
-        transform=data_transform, output_size=heatmap_size, sigma=2, image_size=224)
+        transform=data_transform, output_size=heatmap_size, sigma=4, image_size=224)
     test_dataset = FacialKeypointsHeatmapDataset(
         'data/test_frames_keypoints.csv', 'data/test',
-        transform=data_transform, output_size=heatmap_size, sigma=2, image_size=224)
+        transform=data_transform, output_size=heatmap_size, sigma=4, image_size=224)
     return train_dataset, test_dataset
 
 def get_training_args (model_name, model, freeze):
