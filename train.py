@@ -23,7 +23,7 @@ import wandb
 import argparse
 
 
-from utils import evaluate, get_training_args, load_model, save_checkpoint, load_checkpoint, visualize_keypoints, load_dataset
+from utils import evaluate, evaluate_heatmap, get_training_args, load_model, save_checkpoint, load_checkpoint, visualize_keypoints, load_dataset
 
 
 # Main Training Loop
@@ -80,6 +80,43 @@ def train(model, train_loader, test_loader, optimizer, criterian, device, num_ep
     return epoch, step
 
 
+def train_heatmap(model, train_loader, test_loader, optimizer, device, num_epochs=10, eval_interval=10, log_interval=5):
+    step = 0
+    running_loss = 0
+    criterion = nn.MSELoss()
+
+    for epoch in range(num_epochs):
+        model.train()
+
+        for batch in train_loader:
+            step += 1
+            images = batch['image'].to(device)
+            heatmaps_gt = batch['heatmaps'].to(device)
+
+            heatmaps_pred = model(images)
+            loss = criterion(heatmaps_pred, heatmaps_gt)
+
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+            running_loss += loss.item()
+
+            if step % log_interval == 0:
+                avg_loss = running_loss / log_interval
+                wandb.log({"train_loss": avg_loss, "step": step, "epoch": epoch})
+                print(f"Epoch {epoch}, Step {step}: Train Loss = {avg_loss:.6f}")
+                running_loss = 0
+
+            if step % eval_interval == 0:
+                val_loss = evaluate_heatmap(model, test_loader, device)
+                wandb.log({"val_loss": val_loss, "step": step, "epoch": epoch})
+                print(f"Epoch {epoch}, Step {step}: Val Loss = {val_loss:.6f}")
+                model.train()
+
+    print("Heatmap training complete!")
+    return epoch, step
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -103,7 +140,20 @@ if __name__ == '__main__':
     else:
         model = load_model(args.model).to(device)
         train_loader, test_loader, optimizer = get_training_args(args.model, model, args.freeze)
-        epoch, step = train(model, train_loader, test_loader, optimizer, args.criterion, device)
+
+        wandb.init(project="facial-keypoints", name=f"{args.model}-train", reinit=True)
+        wandb.config.update({
+            "model": args.model,
+            "criterion": args.criterion if args.model != 'unet' else "mse",
+            "freeze": args.freeze,
+            "num_params": sum(p.numel() for p in model.parameters()),
+        })
+
+        if args.model == 'unet':
+            epoch, step = train_heatmap(model, train_loader, test_loader, optimizer, device)
+        else:
+            epoch, step = train(model, train_loader, test_loader, optimizer, args.criterion, device)
 
         # Save last checkpoint
         save_checkpoint(model, optimizer, epoch, step, args.model, path=args.checkpoint)
+        wandb.finish()

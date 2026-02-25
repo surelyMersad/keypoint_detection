@@ -3,10 +3,12 @@ import os
 import subprocess
 import zipfile
 import torch
+import torch.nn as nn
 import matplotlib.pyplot as plt
 from cnn import CNN
 from ResNet import ResNetKeypointDetector
 from dino import DINOKeypointDetector
+from unet import UNet
 from torchvision import transforms, utils
 
 # the transforms we defined in Notebook 1 are in the helper file `custom_transforms.py`
@@ -18,7 +20,7 @@ from custom_transforms import (
 )
 
 # the dataset we created in Notebook 1
-from facial_keypoints_dataset import FacialKeypointsDataset
+from facial_keypoints_dataset import FacialKeypointsDataset, FacialKeypointsHeatmapDataset
 
 def save_checkpoint(model, optimizer, epoch, step, model_name, path='checkpoints/last_checkpoint.pth'):
     os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -50,6 +52,9 @@ def load_model(model_name):
     
     elif model_name == 'resnet':
         model = ResNetKeypointDetector(backbone='resnet18', pretrained=True, freeze_backbone=True)
+
+    elif model_name == 'unet':
+        model = UNet(in_channels=1, num_keypoints=68, heatmap_size=64)
 
     return model
 
@@ -128,6 +133,20 @@ def load_dataset():
     test_dataset = FacialKeypointsDataset('data/test_frames_keypoints.csv', 'data/test', data_transform)
     return train_dataset, test_dataset
 
+
+def load_heatmap_dataset(heatmap_size=64):
+    download_data()
+    data_transform = transforms.Compose(
+        [Rescale(250), RandomCrop(224), NormalizeOriginal(), ToTensor()])
+
+    train_dataset = FacialKeypointsHeatmapDataset(
+        'data/training_frames_keypoints.csv', 'data/training',
+        transform=data_transform, output_size=heatmap_size, sigma=2, image_size=224)
+    test_dataset = FacialKeypointsHeatmapDataset(
+        'data/test_frames_keypoints.csv', 'data/test',
+        transform=data_transform, output_size=heatmap_size, sigma=2, image_size=224)
+    return train_dataset, test_dataset
+
 def get_training_args (model_name, model, freeze):
     if model_name == 'cnn' :
         batch_size = 64
@@ -193,8 +212,53 @@ def get_training_args (model_name, model, freeze):
             drop_last=True,
         )
 
+    elif model_name == 'unet':
+        batch_size = 8
+        lr = 1e-3
+
+        train_dataset, test_dataset = load_heatmap_dataset()
+
+        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
+        test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, drop_last=True)
+
+        optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+
     else :
-        raise ValueError('model is not defined - choose between : CNN, Resnet, Dino')
+        raise ValueError('model is not defined - choose between : CNN, Resnet, Dino, UNet')
 
     return train_loader, test_loader, optimizer
     
+
+def heatmaps_to_keypoints(heatmaps, heatmap_size=64, image_size=224):
+    """Extract keypoint coordinates from heatmaps using argmax.
+    Returns keypoints in normalized space (same as training targets)."""
+    batch_size, num_kpts, h, w = heatmaps.shape
+    heatmaps_flat = heatmaps.view(batch_size, num_kpts, -1)
+    max_indices = heatmaps_flat.argmax(dim=2)
+
+    y_coords = (max_indices // w).float()
+    x_coords = (max_indices % w).float()
+
+    # Scale from heatmap space back to image space, then normalize
+    x_coords = x_coords * (image_size / heatmap_size)
+    y_coords = y_coords * (image_size / heatmap_size)
+
+    # Normalize: (pts - 100) / 50
+    x_norm = (x_coords - 100) / 50.0
+    y_norm = (y_coords - 100) / 50.0
+
+    keypoints = torch.stack([x_norm, y_norm], dim=2)  # [B, 68, 2]
+    return keypoints
+
+
+def evaluate_heatmap(model, test_loader, device):
+    model.eval()
+    criterion = nn.MSELoss()
+    total_loss = 0
+    with torch.no_grad():
+        for batch in test_loader:
+            images = batch['image'].to(device)
+            heatmaps_gt = batch['heatmaps'].to(device)
+            heatmaps_pred = model(images)
+            total_loss += criterion(heatmaps_pred, heatmaps_gt).item()
+    return total_loss / len(test_loader)
