@@ -90,7 +90,10 @@ def train_heatmap(model, train_loader, test_loader, optimizer, device, model_nam
     running_loss = 0
     best_val_loss = float('inf')
     scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5)
-    criterion = nn.MSELoss()
+    def weighted_mse_loss(pred, target, pos_weight=50.0):
+        weight = 1.0 + (pos_weight - 1.0) * target
+        return (weight * (pred - target) ** 2).mean()
+
 
     for epoch in range(num_epochs):
         model.train()
@@ -100,8 +103,8 @@ def train_heatmap(model, train_loader, test_loader, optimizer, device, model_nam
             images = batch['image'].to(device)
             heatmaps_gt = batch['heatmaps'].to(device)
 
-            heatmaps_pred = torch.sigmoid(model(images)) 
-            loss = criterion(heatmaps_pred, heatmaps_gt)
+            heatmaps_pred = torch.sigmoid(model(images))
+            loss = weighted_mse_loss(heatmaps_pred, heatmaps_gt)
 
             optimizer.zero_grad()
             loss.backward()
