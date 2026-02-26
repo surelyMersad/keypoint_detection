@@ -100,7 +100,7 @@ def train_heatmap(model, train_loader, test_loader, optimizer, device, model_nam
             images = batch['image'].to(device)
             heatmaps_gt = batch['heatmaps'].to(device)
 
-            heatmaps_pred = model(images)  # raw logits (no sigmoid)
+            heatmaps_pred = torch.sigmoid(model(images)) 
             loss = criterion(heatmaps_pred, heatmaps_gt)
 
             optimizer.zero_grad()

@@ -229,7 +229,7 @@ def get_training_args (model_name, model, freeze):
         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
         test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, drop_last=True)
 
-        optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=1e-4)
+        optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=1e-3)
 
     else :
         raise ValueError('model is not defined - choose between : CNN, Resnet, Dino, UNet')
@@ -267,6 +267,6 @@ def evaluate_heatmap(model, test_loader, device):
         for batch in test_loader:
             images = batch['image'].to(device)
             heatmaps_gt = batch['heatmaps'].to(device)
-            heatmaps_pred = model(images)
+            heatmaps_pred = torch.sigmoid(model(images))
             total_loss += criterion(heatmaps_pred, heatmaps_gt).item()
     return total_loss / len(test_loader)

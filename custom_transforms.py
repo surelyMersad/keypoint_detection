@@ -324,8 +324,8 @@ class ToTensor(object):
         # torch image: C X H X W
         image = image.transpose((2, 0, 1))
         return {
-            "image": torch.from_numpy(image).float(),
-            "keypoints": torch.from_numpy(key_pts).float(),
+            "image": torch.from_numpy(image),
+            "keypoints": torch.from_numpy(key_pts),
         }
 
 
@@ -375,10 +375,8 @@ class ColorJitter(object):
         image_copy = np.copy(image)
         key_pts_copy = np.copy(key_pts)
 
-        # Ensure uint8 for PIL compatibility
-        if image_copy.dtype != np.uint8:
-            image_copy = (image_copy * 255).astype(np.uint8)
         image_copy = color_jitter(Image.fromarray(image_copy))
+        # image_copy = color_jitter(Image.fromarray((image_copy * 255).astype(np.uint8)))
         image_copy = np.array(image_copy)
 
         return {"image": image_copy, "keypoints": key_pts_copy}
