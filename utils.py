@@ -266,14 +266,21 @@ def evaluate_heatmap(model, test_loader, device, alpha=2.0, beta=4.0):
         for batch in test_loader:
             images = batch['image'].to(device)
             target = batch['heatmaps'].to(device)
-            pred = torch.sigmoid(model(images))
+            pred_logits = model(images)
+            pred = torch.sigmoid(pred_logits)
             pred = torch.clamp(pred, 1e-6, 1 - 1e-6)
 
+            # Focal loss
             pos_mask = target.eq(1).float()
             neg_mask = target.lt(1).float()
             pos_loss = -((1 - pred) ** alpha) * torch.log(pred) * pos_mask
             neg_loss = -((1 - target) ** beta) * (pred ** alpha) * torch.log(1 - pred) * neg_mask
             num_pos = pos_mask.sum().clamp(min=1)
-            loss = (pos_loss.sum() + neg_loss.sum()) / num_pos
-            total_loss += loss.item()
+            focal = (pos_loss.sum() + neg_loss.sum()) / num_pos
+
+            # Masked MSE
+            mask = (target > 0.01).float()
+            mse = (mask * (pred - target) ** 2).sum() / mask.sum().clamp(min=1)
+
+            total_loss += (focal + mse).item()
     return total_loss / len(test_loader)
