@@ -376,7 +376,7 @@ class ColorJitter(object):
         key_pts_copy = np.copy(key_pts)
 
         image_copy = color_jitter(Image.fromarray((image_copy * 255).astype(np.uint8)))
-        image_copy = np.array(image_copy)
+        image_copy = np.array(image_copy, dtype=np.float32) / 255.0
 
         return {"image": image_copy, "keypoints": key_pts_copy}
 
