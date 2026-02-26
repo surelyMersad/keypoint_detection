@@ -24,7 +24,6 @@ import argparse
 
 
 from utils import evaluate, evaluate_heatmap, get_training_args, load_model, save_checkpoint, load_checkpoint, visualize_keypoints, load_dataset
-from rwsa_loss import RwSaLoss, keypoints_to_heatmap_coords
 
 
 # Main Training Loop
@@ -91,7 +90,7 @@ def train_heatmap(model, train_loader, test_loader, optimizer, device, model_nam
     running_loss = 0
     best_val_loss = float('inf')
     scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5)
-    criterion = RwSaLoss(eps=1.0, alpha=1.0, sigma=0.05, n_samples=10, dist='smoothl1').to(device)
+    criterion = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([10.0]).to(device))
 
     for epoch in range(num_epochs):
         model.train()
@@ -99,11 +98,10 @@ def train_heatmap(model, train_loader, test_loader, optimizer, device, model_nam
         for batch in train_loader:
             step += 1
             images = batch['image'].to(device)
-            keypoints = batch['keypoints'].to(device)
-            gt_coords = keypoints_to_heatmap_coords(keypoints)
+            heatmaps_gt = batch['heatmaps'].to(device)
 
             logits = model(images)
-            loss = criterion(logits, gt_coords)
+            loss = criterion(logits, heatmaps_gt)
 
             optimizer.zero_grad()
             loss.backward()
@@ -175,7 +173,7 @@ if __name__ == '__main__':
         wandb.init(project="facial-keypoints", name=f"{args.model}-train", reinit=True)
         wandb.config.update({
             "model": args.model,
-            "criterion": args.criterion if args.model != 'unet' else "rwsa",
+            "criterion": args.criterion if args.model != 'unet' else "bce",
             "freeze": args.freeze,
             "num_params": sum(p.numel() for p in model.parameters()),
         })

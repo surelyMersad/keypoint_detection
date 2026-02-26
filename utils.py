@@ -222,8 +222,8 @@ def get_training_args (model_name, model, freeze):
         )
 
     elif model_name == 'unet':
-        batch_size = 32
-        lr = 3e-4
+        batch_size = 256
+        lr = 1e-3
 
         train_dataset, test_dataset = load_heatmap_dataset()
 
@@ -261,15 +261,13 @@ def heatmaps_to_keypoints(heatmaps, heatmap_size=64, image_size=224):
 
 
 def evaluate_heatmap(model, test_loader, device):
-    from rwsa_loss import RwSaLoss, keypoints_to_heatmap_coords
     model.eval()
-    criterion = RwSaLoss(eps=1.0, alpha=1.0, sigma=0.05, n_samples=10, dist='smoothl1').to(device)
+    criterion = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor([10.0]).to(device))
     total_loss = 0
     with torch.no_grad():
         for batch in test_loader:
             images = batch['image'].to(device)
-            keypoints = batch['keypoints'].to(device)
-            gt_coords = keypoints_to_heatmap_coords(keypoints)
+            target = batch['heatmaps'].to(device)
             logits = model(images)
-            total_loss += criterion(logits, gt_coords).item()
+            total_loss += criterion(logits, target).item()
     return total_loss / len(test_loader)

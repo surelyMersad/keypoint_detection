@@ -34,14 +34,14 @@ class UNet(nn.Module):
         self.enc4 = DoubleConv(128, 256)
         self.pool = nn.MaxPool2d(2)
 
-        # Dropout between encoder and decoder
-        self.dropout_enc = nn.Dropout2d(p=0.1)
+        # Dropout
+        self.dropout_enc = nn.Dropout2d(p=0.3)
 
         # Bottleneck
         self.bottleneck = DoubleConv(256, 512)
 
-        # Dropout after bottleneck
-        self.dropout_bottleneck = nn.Dropout2d(p=0.1)
+        self.dropout_bottleneck = nn.Dropout2d(p=0.3)
+        self.dropout_dec = nn.Dropout2d(p=0.2)
 
         # Decoder
         self.up4 = nn.ConvTranspose2d(512, 256, kernel_size=2, stride=2)
@@ -69,10 +69,10 @@ class UNet(nn.Module):
         b = self.dropout_bottleneck(b)
 
         # Decoder with skip connections
-        d4 = self.dec4(torch.cat([self.up4(b), e4], dim=1))   # [B, 256, 28, 28]
-        d3 = self.dec3(torch.cat([self.up3(d4), e3], dim=1))  # [B, 128, 56, 56]
-        d2 = self.dec2(torch.cat([self.up2(d3), e2], dim=1))  # [B, 64, 112, 112]
-        d1 = self.dec1(torch.cat([self.up1(d2), e1], dim=1))  # [B, 32, 224, 224]
+        d4 = self.dropout_dec(self.dec4(torch.cat([self.up4(b), e4], dim=1)))
+        d3 = self.dropout_dec(self.dec3(torch.cat([self.up3(d4), e3], dim=1)))
+        d2 = self.dec2(torch.cat([self.up2(d3), e2], dim=1))
+        d1 = self.dec1(torch.cat([self.up1(d2), e1], dim=1))
 
         # Output heatmaps resized to target resolution
         out = self.out_conv(d1)                # [B, 68, 224, 224]

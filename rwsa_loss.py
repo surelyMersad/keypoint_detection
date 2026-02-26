@@ -52,13 +52,14 @@ class RwSaLoss(nn.Module):
     - Penalizes high values far from GT via a distance margin
     - Samples "positive" positions near GT from a Gaussian mask
     """
-    def __init__(self, eps=1.0, alpha=1.0, sigma=0.05, n_samples=10, dist='smoothl1'):
+    def __init__(self, eps=1.0, alpha=1.0, sigma=0.05, n_samples=10, loss_weight=5000.0, dist='smoothl1'):
         """
         Args:
             eps: Temperature parameter for log-sum-exp
             alpha: Margin weighting coefficient
             sigma: Gaussian sigma for sampling mask (in [-1,1] normalized space)
             n_samples: Number of positions to sample per keypoint
+            loss_weight: Scalar multiplier (paper uses lambda=5000)
             dist: Distance metric for margin ('smoothl1', 'l1', 'l2')
         """
         super().__init__()
@@ -66,6 +67,7 @@ class RwSaLoss(nn.Module):
         self.alpha = alpha
         self.sigma = sigma
         self.n_samples = n_samples
+        self.loss_weight = loss_weight
 
         if dist == 'smoothl1':
             self.dist_func = MySmoothL1Loss()
@@ -130,4 +132,4 @@ class RwSaLoss(nn.Module):
             losses.append(self.eps * denominator - numerator)
 
         losses = torch.cat(losses, dim=-1)  # (B, N, n_samples)
-        return losses.mean()
+        return self.loss_weight * losses.mean()
