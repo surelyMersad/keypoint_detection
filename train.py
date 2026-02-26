@@ -90,25 +90,14 @@ def train_heatmap(model, train_loader, test_loader, optimizer, device, model_nam
     running_loss = 0
     best_val_loss = float('inf')
     scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5)
-    def focal_heatmap_loss(pred_logits, target, alpha=2.0, beta=4.0):
-        """CenterNet-style focal loss for peak detection."""
-        pred = torch.sigmoid(pred_logits)
-        pred = torch.clamp(pred, 1e-6, 1 - 1e-6)
-
-        pos_mask = target.eq(1).float()
-        neg_mask = target.lt(1).float()
-
-        pos_loss = -((1 - pred) ** alpha) * torch.log(pred) * pos_mask
-        neg_loss = -((1 - target) ** beta) * (pred ** alpha) * torch.log(1 - pred) * neg_mask
-
-        num_pos = pos_mask.sum().clamp(min=1)
-        return (pos_loss.sum() + neg_loss.sum()) / num_pos
-
-    def masked_mse_loss(pred_logits, target):
-        """MSE only on the Gaussian blob region (target > 0) to teach per-channel shape."""
-        pred = torch.sigmoid(pred_logits)
-        mask = (target > 0.01).float()
-        return (mask * (pred - target) ** 2).sum() / mask.sum().clamp(min=1)
+    def heatmap_loss(pred, target):
+        """Per-channel weighted MSE. No sigmoid — direct regression like SimpleBaseline/HRNet."""
+        # Weight foreground pixels (Gaussian blob) more than background
+        weight = 1.0 + 49.0 * target  # 1x for bg, up to 50x at peaks
+        # Compute per-channel to ensure each keypoint gets balanced gradients
+        # pred and target: [B, 68, H, W]
+        loss_per_channel = (weight * (pred - target) ** 2).mean(dim=(0, 2, 3))  # [68]
+        return loss_per_channel.mean()
 
     for epoch in range(num_epochs):
         model.train()
@@ -118,12 +107,11 @@ def train_heatmap(model, train_loader, test_loader, optimizer, device, model_nam
             images = batch['image'].to(device)
             heatmaps_gt = batch['heatmaps'].to(device)
 
-            pred_logits = model(images)
-            loss = focal_heatmap_loss(pred_logits, heatmaps_gt) + masked_mse_loss(pred_logits, heatmaps_gt)
+            pred = torch.clamp(model(images), 0, 1)
+            loss = heatmap_loss(pred, heatmaps_gt)
 
             optimizer.zero_grad()
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             optimizer.step()
 
             running_loss += loss.item()

@@ -17,6 +17,7 @@ from custom_transforms import (
     NormalizeOriginal,
     ToTensor,
     RandomHorizontalFlip,
+    RandomRotate,
     ColorJitter,
 )
 
@@ -142,7 +143,7 @@ def load_dataset():
 def load_heatmap_dataset(heatmap_size=64):
     download_data()
     train_transform = transforms.Compose([
-        Rescale(250), RandomCrop(224), RandomHorizontalFlip(), ColorJitter(),
+        Rescale(250), RandomCrop(224), RandomHorizontalFlip(), RandomRotate(15), ColorJitter(),
         NormalizeOriginal(), ToTensor()])
     test_transform = transforms.Compose(
         [Rescale((224, 224)), NormalizeOriginal(), ToTensor()])
@@ -259,28 +260,15 @@ def heatmaps_to_keypoints(heatmaps, heatmap_size=64, image_size=224):
     return keypoints
 
 
-def evaluate_heatmap(model, test_loader, device, alpha=2.0, beta=4.0):
+def evaluate_heatmap(model, test_loader, device):
     model.eval()
     total_loss = 0
     with torch.no_grad():
         for batch in test_loader:
             images = batch['image'].to(device)
             target = batch['heatmaps'].to(device)
-            pred_logits = model(images)
-            pred = torch.sigmoid(pred_logits)
-            pred = torch.clamp(pred, 1e-6, 1 - 1e-6)
-
-            # Focal loss
-            pos_mask = target.eq(1).float()
-            neg_mask = target.lt(1).float()
-            pos_loss = -((1 - pred) ** alpha) * torch.log(pred) * pos_mask
-            neg_loss = -((1 - target) ** beta) * (pred ** alpha) * torch.log(1 - pred) * neg_mask
-            num_pos = pos_mask.sum().clamp(min=1)
-            focal = (pos_loss.sum() + neg_loss.sum()) / num_pos
-
-            # Masked MSE
-            mask = (target > 0.01).float()
-            mse = (mask * (pred - target) ** 2).sum() / mask.sum().clamp(min=1)
-
-            total_loss += (focal + mse).item()
+            pred = torch.clamp(model(images), 0, 1)
+            weight = 1.0 + 49.0 * target
+            loss_per_channel = (weight * (pred - target) ** 2).mean(dim=(0, 2, 3))
+            total_loss += loss_per_channel.mean().item()
     return total_loss / len(test_loader)
