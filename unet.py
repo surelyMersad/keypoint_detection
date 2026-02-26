@@ -23,7 +23,7 @@ class DoubleConv(nn.Module):
 
 
 class UNet(nn.Module):
-    def __init__(self, in_channels=1, num_keypoints=68, heatmap_size=64, dropout_p=0.5):
+    def __init__(self, in_channels=1, num_keypoints=68, heatmap_size=64):
         super().__init__()
         self.heatmap_size = heatmap_size
 
@@ -35,13 +35,13 @@ class UNet(nn.Module):
         self.pool = nn.MaxPool2d(2)
 
         # Dropout between encoder and decoder
-        self.dropout_enc = nn.Dropout2d(p=dropout_p)
+        self.dropout_enc = nn.Dropout2d(p=0.1)
 
         # Bottleneck
         self.bottleneck = DoubleConv(256, 512)
 
         # Dropout after bottleneck
-        self.dropout_bottleneck = nn.Dropout2d(p=dropout_p)
+        self.dropout_bottleneck = nn.Dropout2d(p=0.1)
 
         # Decoder
         self.up4 = nn.ConvTranspose2d(512, 256, kernel_size=2, stride=2)

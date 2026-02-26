@@ -90,8 +90,7 @@ def train_heatmap(model, train_loader, test_loader, optimizer, device, model_nam
     running_loss = 0
     best_val_loss = float('inf')
     scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5)
-    # BCE with pos_weight: missing a peak pixel is 5x worse than false-alarming on background
-    criterion = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([5.0]).to(device))
+    criterion = nn.MSELoss()
 
     for epoch in range(num_epochs):
         model.train()

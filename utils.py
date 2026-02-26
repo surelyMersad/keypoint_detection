@@ -149,10 +149,10 @@ def load_heatmap_dataset(heatmap_size=64):
 
     train_dataset = FacialKeypointsHeatmapDataset(
         'data/training_frames_keypoints.csv', 'data/training',
-        transform=train_transform, output_size=heatmap_size, sigma=4, image_size=224)
+        transform=train_transform, output_size=heatmap_size, sigma=2, image_size=224)
     test_dataset = FacialKeypointsHeatmapDataset(
         'data/test_frames_keypoints.csv', 'data/test',
-        transform=test_transform, output_size=heatmap_size, sigma=4, image_size=224)
+        transform=test_transform, output_size=heatmap_size, sigma=2, image_size=224)
     return train_dataset, test_dataset
 
 def get_training_args (model_name, model, freeze):
@@ -261,7 +261,7 @@ def heatmaps_to_keypoints(heatmaps, heatmap_size=64, image_size=224):
 
 def evaluate_heatmap(model, test_loader, device):
     model.eval()
-    criterion = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor([5.0]).to(device))
+    criterion = torch.nn.MSELoss()
     total_loss = 0
     with torch.no_grad():
         for batch in test_loader:
