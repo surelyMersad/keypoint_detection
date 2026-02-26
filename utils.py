@@ -259,15 +259,21 @@ def heatmaps_to_keypoints(heatmaps, heatmap_size=64, image_size=224):
     return keypoints
 
 
-def evaluate_heatmap(model, test_loader, device, pos_weight=10.0):
+def evaluate_heatmap(model, test_loader, device, alpha=2.0, beta=4.0):
     model.eval()
     total_loss = 0
     with torch.no_grad():
         for batch in test_loader:
             images = batch['image'].to(device)
-            heatmaps_gt = batch['heatmaps'].to(device)
-            heatmaps_pred = torch.sigmoid(model(images))
-            weight = 1.0 + (pos_weight - 1.0) * heatmaps_gt
-            loss = (weight * (heatmaps_pred - heatmaps_gt) ** 2).mean()
+            target = batch['heatmaps'].to(device)
+            pred = torch.sigmoid(model(images))
+            pred = torch.clamp(pred, 1e-6, 1 - 1e-6)
+
+            pos_mask = target.eq(1).float()
+            neg_mask = target.lt(1).float()
+            pos_loss = -((1 - pred) ** alpha) * torch.log(pred) * pos_mask
+            neg_loss = -((1 - target) ** beta) * (pred ** alpha) * torch.log(1 - pred) * neg_mask
+            num_pos = pos_mask.sum().clamp(min=1)
+            loss = (pos_loss.sum() + neg_loss.sum()) / num_pos
             total_loss += loss.item()
     return total_loss / len(test_loader)

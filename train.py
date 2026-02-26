@@ -90,10 +90,28 @@ def train_heatmap(model, train_loader, test_loader, optimizer, device, model_nam
     running_loss = 0
     best_val_loss = float('inf')
     scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5)
-    def weighted_mse_loss(pred, target, pos_weight=10.0):
-        weight = 1.0 + (pos_weight - 1.0) * target
-        return (weight * (pred - target) ** 2).mean()
+    def focal_heatmap_loss(pred_logits, target, alpha=2.0, beta=4.0):
+        """CenterNet-style focal loss for heatmap regression.
 
+        For positive pixels (target == 1): -(1-pred)^alpha * log(pred)
+        For negative pixels (target < 1):  -(1-target)^beta * pred^alpha * log(1-pred)
+
+        This naturally handles foreground/background imbalance by:
+        - Down-weighting easy background pixels (pred^alpha term)
+        - Reducing penalty near keypoints via (1-target)^beta
+        """
+        pred = torch.sigmoid(pred_logits)
+        pred = torch.clamp(pred, 1e-6, 1 - 1e-6)
+
+        pos_mask = target.eq(1).float()
+        neg_mask = target.lt(1).float()
+
+        pos_loss = -((1 - pred) ** alpha) * torch.log(pred) * pos_mask
+        neg_loss = -((1 - target) ** beta) * (pred ** alpha) * torch.log(1 - pred) * neg_mask
+
+        num_pos = pos_mask.sum().clamp(min=1)
+        loss = (pos_loss.sum() + neg_loss.sum()) / num_pos
+        return loss
 
     for epoch in range(num_epochs):
         model.train()
@@ -103,8 +121,8 @@ def train_heatmap(model, train_loader, test_loader, optimizer, device, model_nam
             images = batch['image'].to(device)
             heatmaps_gt = batch['heatmaps'].to(device)
 
-            heatmaps_pred = torch.sigmoid(model(images))
-            loss = weighted_mse_loss(heatmaps_pred, heatmaps_gt)
+            pred_logits = model(images)
+            loss = focal_heatmap_loss(pred_logits, heatmaps_gt)
 
             optimizer.zero_grad()
             loss.backward()
@@ -177,7 +195,7 @@ if __name__ == '__main__':
         wandb.init(project="facial-keypoints", name=f"{args.model}-train", reinit=True)
         wandb.config.update({
             "model": args.model,
-            "criterion": args.criterion if args.model != 'unet' else "mse",
+            "criterion": args.criterion if args.model != 'unet' else "focal_heatmap",
             "freeze": args.freeze,
             "num_params": sum(p.numel() for p in model.parameters()),
         })
