@@ -375,8 +375,11 @@ class ColorJitter(object):
         image_copy = np.copy(image)
         key_pts_copy = np.copy(key_pts)
 
-        image_copy = color_jitter(Image.fromarray((image_copy * 255).astype(np.uint8)))
-        image_copy = np.array(image_copy, dtype=np.float32) / 255.0
+        # Images are uint8 [0, 255] from JPEG - pass directly to PIL
+        if image_copy.dtype != np.uint8:
+            image_copy = (image_copy * 255).astype(np.uint8)
+        image_copy = color_jitter(Image.fromarray(image_copy))
+        image_copy = np.array(image_copy)  # back to uint8 [0, 255]
 
         return {"image": image_copy, "keypoints": key_pts_copy}
 

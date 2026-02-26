@@ -90,7 +90,7 @@ def train_heatmap(model, train_loader, test_loader, optimizer, device, model_nam
     running_loss = 0
     best_val_loss = float('inf')
     scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5)
-    def weighted_mse_loss(pred, target, pos_weight=50.0):
+    def weighted_mse_loss(pred, target, pos_weight=10.0):
         weight = 1.0 + (pos_weight - 1.0) * target
         return (weight * (pred - target) ** 2).mean()
 

@@ -149,10 +149,10 @@ def load_heatmap_dataset(heatmap_size=64):
 
     train_dataset = FacialKeypointsHeatmapDataset(
         'data/training_frames_keypoints.csv', 'data/training',
-        transform=train_transform, output_size=heatmap_size, sigma=4, image_size=224)
+        transform=train_transform, output_size=heatmap_size, sigma=2, image_size=224)
     test_dataset = FacialKeypointsHeatmapDataset(
         'data/test_frames_keypoints.csv', 'data/test',
-        transform=test_transform, output_size=heatmap_size, sigma=4, image_size=224)
+        transform=test_transform, output_size=heatmap_size, sigma=2, image_size=224)
     return train_dataset, test_dataset
 
 def get_training_args (model_name, model, freeze):
@@ -229,7 +229,7 @@ def get_training_args (model_name, model, freeze):
         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
         test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, drop_last=True)
 
-        optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=1e-3)
+        optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=1e-5)
 
     else :
         raise ValueError('model is not defined - choose between : CNN, Resnet, Dino, UNet')
@@ -259,7 +259,7 @@ def heatmaps_to_keypoints(heatmaps, heatmap_size=64, image_size=224):
     return keypoints
 
 
-def evaluate_heatmap(model, test_loader, device, pos_weight=50.0):
+def evaluate_heatmap(model, test_loader, device, pos_weight=10.0):
     model.eval()
     total_loss = 0
     with torch.no_grad():
