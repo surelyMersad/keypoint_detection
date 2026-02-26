@@ -145,7 +145,7 @@ def load_heatmap_dataset(heatmap_size=64):
         Rescale(250), RandomCrop(224), RandomHorizontalFlip(), ColorJitter(),
         NormalizeOriginal(), ToTensor()])
     test_transform = transforms.Compose(
-        [Rescale(224), NormalizeOriginal(), ToTensor()])
+        [Rescale((224, 224)), NormalizeOriginal(), ToTensor()])
 
     train_dataset = FacialKeypointsHeatmapDataset(
         'data/training_frames_keypoints.csv', 'data/training',
