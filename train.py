@@ -90,14 +90,8 @@ def train_heatmap(model, train_loader, test_loader, optimizer, device, model_nam
     running_loss = 0
     best_val_loss = float('inf')
     scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5)
-    def heatmap_loss(pred, target):
-        """Per-channel weighted MSE. No sigmoid — direct regression like SimpleBaseline/HRNet."""
-        # Weight foreground pixels (Gaussian blob) more than background
-        weight = 1.0 + 49.0 * target  # 1x for bg, up to 50x at peaks
-        # Compute per-channel to ensure each keypoint gets balanced gradients
-        # pred and target: [B, 68, H, W]
-        loss_per_channel = (weight * (pred - target) ** 2).mean(dim=(0, 2, 3))  # [68]
-        return loss_per_channel.mean()
+    # pos_weight balances the ~99% background vs ~1% foreground
+    criterion = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([50.0]).to(device))
 
     for epoch in range(num_epochs):
         model.train()
@@ -107,8 +101,8 @@ def train_heatmap(model, train_loader, test_loader, optimizer, device, model_nam
             images = batch['image'].to(device)
             heatmaps_gt = batch['heatmaps'].to(device)
 
-            pred = torch.clamp(model(images), 0, 1)
-            loss = heatmap_loss(pred, heatmaps_gt)
+            logits = model(images)
+            loss = criterion(logits, heatmaps_gt)
 
             optimizer.zero_grad()
             loss.backward()

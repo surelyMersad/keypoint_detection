@@ -262,13 +262,12 @@ def heatmaps_to_keypoints(heatmaps, heatmap_size=64, image_size=224):
 
 def evaluate_heatmap(model, test_loader, device):
     model.eval()
+    criterion = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor([50.0]).to(device))
     total_loss = 0
     with torch.no_grad():
         for batch in test_loader:
             images = batch['image'].to(device)
             target = batch['heatmaps'].to(device)
-            pred = torch.clamp(model(images), 0, 1)
-            weight = 1.0 + 49.0 * target
-            loss_per_channel = (weight * (pred - target) ** 2).mean(dim=(0, 2, 3))
-            total_loss += loss_per_channel.mean().item()
+            logits = model(images)
+            total_loss += criterion(logits, target).item()
     return total_loss / len(test_loader)
